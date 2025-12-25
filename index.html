@@ -1,27 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mini Militia Clone</title>
+    <title>Mini Militia Clone - Fixed</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #333; touch-action: none; }
+        body { margin: 0; overflow: hidden; background: #5c8a8a; touch-action: none; }
         canvas { display: block; }
         
-        /* UI Layer for Joysticks */
+        /* UI Layer */
         #ui-layer {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            pointer-events: none; /* Let clicks pass through to canvas if needed */
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
         }
-        
         .joystick-zone {
-            position: absolute;
-            bottom: 50px;
-            width: 150px;
-            height: 150px;
-            pointer-events: auto; /* Enable touch for joysticks */
+            position: absolute; bottom: 50px; width: 150px; height: 150px;
+            pointer-events: auto;
         }
-
         #stick-left { left: 50px; }
         #stick-right { right: 50px; }
     </style>
@@ -37,153 +30,133 @@
     </div>
 
     <script>
-        // --- 1. SETUP THE GAME APP ---
-        const app = new PIXI.Application({ 
-            width: window.innerWidth, 
-            height: window.innerHeight, 
-            backgroundColor: 0x5c8a8a // Skyish color
-        });
+        const app = new PIXI.Application({ width: window.innerWidth, height: window.innerHeight, backgroundColor: 0x5c8a8a });
         document.body.appendChild(app.view);
 
-        // --- 2. GLOBAL VARIABLES ---
         const player = new PIXI.Container();
-        let armContainer, body, head, legLeft, legRight;
+        // We now have TWO arms
+        let frontArmContainer, backArmContainer; 
+        let body, head, legLeft, legRight;
         
-        // Input States
         let moveData = { x: 0, y: 0, active: false };
         let aimData = { angle: 0, active: false };
 
-        // --- 3. LOAD ASSETS ---
-        // Ensure your files are named exactly like this in the folder!
-        const assets = [
-            'arm.png',  // 1000008116.png
-            'body.png', // 1000008117.png
-            'head.png', // 1000008118.png
-            'leg.png'   // 1000008119.png
-        ];
+        const assets = ['arm.png', 'body.png', 'head.png', 'leg.png'];
 
         PIXI.Assets.load(assets).then(setupGame);
 
         function setupGame() {
-            // --- BUILD THE PUPPET (HIERARCHY) ---
-            
-            // 1. Center the player container
             player.x = app.screen.width / 2;
             player.y = app.screen.height / 2;
 
-            // 2. LEGS (Attached to player, behind body)
+            // --- LAYER 1: BACK ARM (Farthest away) ---
+            backArmContainer = createArm();
+            // Offset it slightly behind the shoulder (visual depth)
+            backArmContainer.position.set(10, -25); 
+            // Darken it slightly so it looks like it's in the background
+            backArmContainer.tint = 0xCCCCCC; 
+            player.addChild(backArmContainer);
+
+            // --- LAYER 2: BACK LEG ---
             legLeft = PIXI.Sprite.from('leg.png');
-            legLeft.anchor.set(0.5, 0); // Pivot at hip (top center)
-            legLeft.position.set(-10, 30); // Offset relative to body
+            legLeft.anchor.set(0.5, 0); 
+            // FIX: Moved to -20 (Wider stance)
+            legLeft.position.set(-20, 25); 
             player.addChild(legLeft);
 
-            legRight = PIXI.Sprite.from('leg.png');
-            legRight.anchor.set(0.5, 0);
-            legRight.position.set(10, 30);
-            player.addChild(legRight);
-
-            // 3. BODY (The core)
+            // --- LAYER 3: BODY ---
             body = PIXI.Sprite.from('body.png');
-            body.anchor.set(0.5); // Center pivot
+            body.anchor.set(0.5);
             player.addChild(body);
 
-            // 4. HEAD (Attached to body)
+            // --- LAYER 4: FRONT LEG ---
+            legRight = PIXI.Sprite.from('leg.png');
+            legRight.anchor.set(0.5, 0); 
+            // FIX: Moved to +20 (Wider stance)
+            legRight.position.set(20, 25); 
+            player.addChild(legRight);
+
+            // --- LAYER 5: HEAD ---
             head = PIXI.Sprite.from('head.png');
-            head.anchor.set(0.5, 0.9); // Pivot at the neck (bottom)
-            head.position.set(0, -35); // Move up to sit on neck
+            head.anchor.set(0.5, 0.95); 
+            head.position.set(0, -32); // Sit on neck
             player.addChild(head);
 
-            // 5. ARM (The tricky part!)
-            // We use a container to make rotation easier
-            armContainer = new PIXI.Container();
-            armContainer.position.set(5, -10); // Shoulder position
-            
-            const armSprite = PIXI.Sprite.from('arm.png');
-            // IMPORTANT: Adjust this based on your specific image
-            // We want the pivot to be the shoulder (Left side of image usually)
-            armSprite.anchor.set(0.1, 0.5); 
-            
-            armContainer.addChild(armSprite);
-            player.addChild(armContainer);
+            // --- LAYER 6: FRONT ARM (Closest to camera) ---
+            frontArmContainer = createArm();
+            // Position near the front shoulder
+            frontArmContainer.position.set(-5, -25); 
+            player.addChild(frontArmContainer);
 
-            // Add player to scene
             app.stage.addChild(player);
-
-            // --- START GAME LOOP ---
             app.ticker.add(gameLoop);
-            
-            // Initialize Joysticks
             setupControls();
         }
 
+        // Helper function to create an arm since we need two now
+        function createArm() {
+            const container = new PIXI.Container();
+            const sprite = PIXI.Sprite.from('arm.png');
+            
+            // FIX: Pivot Point
+            // (0, 0.5) means pivot is at the Left Edge, Center Height.
+            // This attaches the shoulder to the body.
+            sprite.anchor.set(0, 0.5); 
+            
+            container.addChild(sprite);
+            return container;
+        }
+
         function gameLoop(delta) {
-            // 1. MOVEMENT LOGIC (Left Stick)
+            // 1. MOVEMENT
             if (moveData.active) {
-                player.x += moveData.x * 5 * delta; // Speed = 5
+                player.x += moveData.x * 5 * delta;
                 player.y += moveData.y * 5 * delta;
 
-                // Simple "Flying" leg animation (wobble legs)
-                legLeft.rotation = Math.sin(Date.now() / 100) * 0.2;
-                legRight.rotation = Math.cos(Date.now() / 100) * 0.2;
+                // Widen leg animation slightly
+                legLeft.rotation = Math.sin(Date.now() / 100) * 0.4;
+                legRight.rotation = Math.cos(Date.now() / 100) * 0.4;
             } else {
-                // Reset legs when stopped
                 legLeft.rotation = 0;
                 legRight.rotation = 0;
             }
 
-            // 2. AIMING LOGIC (Right Stick)
+            // 2. AIMING
             if (aimData.active) {
-                // Rotate arm to point direction
-                // Note: -aimData.angle because screen coordinates are flipped for Y
-                armContainer.rotation = -aimData.angle;
+                // Rotate BOTH arms
+                // We add a tiny offset to the back arm so they don't look like 100% clones
+                frontArmContainer.rotation = -aimData.angle;
+                backArmContainer.rotation = -aimData.angle + 0.1; 
 
-                // 3. FLIPPING LOGIC (Face Left/Right)
-                // If aiming to the left (angle > 90 degrees or < -90 degrees)
-                const isLookingLeft = Math.abs(aimData.angle) > (Math.PI / 2); // > 90 deg
+                // 3. FLIPPING
+                const isLookingLeft = Math.abs(aimData.angle) > (Math.PI / 2);
 
                 if (isLookingLeft) {
-                    player.scale.x = -1; // Flip entire player
-                    // Fix Arm: When player is flipped, arm rotation needs inversion math
-                    armContainer.rotation = Math.PI - armContainer.rotation; 
+                    player.scale.x = -1; 
+                    
+                    // Math fix for rotating arms when body is flipped
+                    frontArmContainer.rotation = Math.PI - frontArmContainer.rotation;
+                    backArmContainer.rotation = Math.PI - backArmContainer.rotation;
                 } else {
-                    player.scale.x = 1; // Face normal
+                    player.scale.x = 1;
                 }
             }
         }
 
         function setupControls() {
-            // LEFT JOYSTICK (Movement)
-            const joyLeft = nipplejs.create({
-                zone: document.getElementById('stick-left'),
-                mode: 'static',
-                position: { left: '50%', top: '50%' },
-                color: 'white'
-            });
-
+            const joyLeft = nipplejs.create({ zone: document.getElementById('stick-left'), mode: 'static', position: { left: '50%', top: '50%' }, color: 'white' });
             joyLeft.on('move', (evt, data) => {
                 moveData.active = true;
-                // Normalize vector (cosine/sine)
                 moveData.x = Math.cos(data.angle.radian);
-                moveData.y = -Math.sin(data.angle.radian); // Invert Y for screen coords
+                moveData.y = -Math.sin(data.angle.radian);
             });
-
             joyLeft.on('end', () => { moveData.active = false; });
 
-            // RIGHT JOYSTICK (Aiming)
-            const joyRight = nipplejs.create({
-                zone: document.getElementById('stick-right'),
-                mode: 'static',
-                position: { left: '50%', top: '50%' },
-                color: 'red'
-            });
-
+            const joyRight = nipplejs.create({ zone: document.getElementById('stick-right'), mode: 'static', position: { left: '50%', top: '50%' }, color: 'red' });
             joyRight.on('move', (evt, data) => {
                 aimData.active = true;
                 aimData.angle = data.angle.radian;
             });
-            
-            // Don't reset aim on 'end' (keep gun pointing last direction)
-            // joyRight.on('end', () => { aimData.active = false; });
         }
     </script>
 </body>
