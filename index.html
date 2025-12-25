@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mini Militia Clone - Perfect Aim</title>
+    <title>Mini Militia Clone - With Guns</title>
     <style>
         body { margin: 0; overflow: hidden; background: #5c8a8a; touch-action: none; }
         canvas { display: block; }
@@ -40,7 +40,8 @@
         let moveData = { x: 0, y: 0, active: false };
         let aimData = { angle: 0, active: false };
 
-        const assets = ['arm.png', 'body.png', 'head.png', 'leg.png'];
+        // ADDED 'uzi.png' to the list
+        const assets = ['arm.png', 'body.png', 'head.png', 'leg.png', 'uzi.png'];
 
         PIXI.Assets.load(assets).then(setupGame);
 
@@ -73,24 +74,46 @@
             // --- LAYER 4: HEAD ---
             head = PIXI.Sprite.from('head.png');
             head.anchor.set(0.5, 0.9); 
-            // FIXED: Moved Head UP to -70
             head.position.set(0, -70);
             player.addChild(head);
 
-            // --- LAYER 5: FRONT ARM ---
+            // --- LAYER 5: FRONT ARM (The One with the Gun) ---
             frontArmContainer = createArm();
             frontArmContainer.position.set(-40, -25); 
             player.addChild(frontArmContainer);
+
+            // --- EQUIP WEAPON ---
+            // format: equipGun(armContainer, gunImageName, offsetX, offsetY)
+            // You can tweak the numbers (55, 15) to fit the gun perfectly in the hand
+            equipGun(frontArmContainer, 'uzi.png', 55, 15);
 
             app.stage.addChild(player);
             app.ticker.add(gameLoop);
             setupControls();
         }
 
+        // --- NEW FLEXIBLE GUN FUNCTION ---
+        function equipGun(armContainer, gunTextureName, offsetX, offsetY) {
+            // 1. Create Gun Sprite
+            const gun = PIXI.Sprite.from(gunTextureName);
+            
+            // 2. Set Anchor to the Trigger/Handle
+            // (0.5, 0.5 means center of gun. Adjust this if the handle is lower)
+            gun.anchor.set(0.4, 0.4); 
+            
+            // 3. Position it relative to the shoulder
+            gun.position.set(offsetX, offsetY);
+            
+            // 4. Add BEHIND the arm sprite?
+            // "addChildAt(gun, 0)" puts it behind the arm (so fingers cover the handle)
+            // "addChild(gun)" puts it in front of the arm
+            armContainer.addChildAt(gun, 0); 
+        }
+
         function createArm() {
             const container = new PIXI.Container();
             const sprite = PIXI.Sprite.from('arm.png');
-            sprite.anchor.set(0, 0.5); 
+            sprite.anchor.set(0, 0.5); // Shoulder Pivot
             container.addChild(sprite);
             return container;
         }
@@ -101,7 +124,6 @@
                 player.x += moveData.x * 5 * delta;
                 player.y += moveData.y * 5 * delta;
                 
-                // Leg Animation
                 legLeft.rotation = Math.sin(Date.now() / 100) * 0.4;
                 legRight.rotation = Math.cos(Date.now() / 100) * 0.4;
             } else {
@@ -109,53 +131,30 @@
                 legRight.rotation = 0;
             }
 
-            // AIMING (The Corrected Logic)
+            // AIMING (360 Degree Fix)
             if (aimData.active) {
-                let angle = aimData.angle; // NippleJS gives 0 to 6.28
-                
-                // Correct logic: Left is between 90 deg (PI/2) and 270 deg (3PI/2)
+                let angle = aimData.angle;
                 const isLookingLeft = (angle > Math.PI / 2) && (angle < 3 * Math.PI / 2);
 
                 if (isLookingLeft) {
-                    // --- FACE LEFT ---
                     player.scale.x = -1; 
-                    
-                    // Rotation Math for Left Side
-                    // We need to subtract PI to get rotation relative to "Left"
-                    // Example: Up-Left (135deg) -> 2.35rad. 2.35 - 3.14 = -0.79 (Up).
                     let correctRot = angle - Math.PI;
-                    
                     frontArmContainer.rotation = correctRot;
                     backArmContainer.rotation = correctRot;
-
-                    // Head Rotation (Clamped)
                     head.rotation = Math.max(-0.5, Math.min(0.5, correctRot * 0.5));
-
                 } else {
-                    // --- FACE RIGHT ---
                     player.scale.x = 1;
-                    
-                    // Rotation Math for Right Side
-                    // If angle > 270 (Bottom Right), we subtract 2PI to get a negative number
-                    // This fixes the "snap" issue
                     let correctRot = angle;
-                    if (angle > Math.PI) {
-                        correctRot = angle - (Math.PI * 2);
-                    }
+                    if (angle > Math.PI) correctRot = angle - (Math.PI * 2);
                     
-                    // In Pixi, positive rotation is Down. Nipple angle Up is positive.
-                    // So we invert it.
                     frontArmContainer.rotation = -correctRot;
                     backArmContainer.rotation = -correctRot;
-
-                    // Head Rotation (Clamped)
                     head.rotation = Math.max(-0.5, Math.min(0.5, -correctRot * 0.5));
                 }
             }
         }
 
         function setupControls() {
-            // MOVEMENT
             const joyLeft = nipplejs.create({ zone: document.getElementById('stick-left'), mode: 'static', position: { left: '50%', top: '50%' }, color: 'white' });
             joyLeft.on('move', (evt, data) => {
                 moveData.active = true;
@@ -164,7 +163,6 @@
             });
             joyLeft.on('end', () => { moveData.active = false; });
 
-            // AIM
             const joyRight = nipplejs.create({ zone: document.getElementById('stick-right'), mode: 'static', position: { left: '50%', top: '50%' }, color: 'red' });
             joyRight.on('move', (evt, data) => {
                 aimData.active = true;
