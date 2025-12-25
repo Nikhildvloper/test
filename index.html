@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mini Militia Clone - Perfected</title>
+    <title>Mini Militia Clone - Head Rotation & Fixes</title>
     <style>
         body { margin: 0; overflow: hidden; background: #5c8a8a; touch-action: none; }
         canvas { display: block; }
@@ -48,43 +48,39 @@
             player.x = app.screen.width / 2;
             player.y = app.screen.height / 2;
 
-            // --- LAYER 1: BACK ARM (Left Side) ---
+            // --- LAYER 1: BACK ARM (Behind Body) ---
             backArmContainer = createArm();
-            // Moved to Left (-15) and Up (-25) for shoulder position
+            // Using your tweaked coordinate (40)
             backArmContainer.position.set(40, -25); 
-            backArmContainer.tint = 0xCCCCCC; // Shadow effect
+            backArmContainer.tint = 0xCCCCCC; 
             player.addChild(backArmContainer);
 
-            // --- LAYER 2: LEGS (Both Behind Body) ---
-            
-            // Left Leg (Back Leg)
+            // --- LAYER 2: LEGS ---
             legLeft = PIXI.Sprite.from('leg.png');
             legLeft.anchor.set(0.5, 0); 
-            // Moved far Left (-20)
             legLeft.position.set(-15, 25); 
             player.addChild(legLeft);
 
-            // Right Leg (Front Leg - but still behind body)
             legRight = PIXI.Sprite.from('leg.png');
             legRight.anchor.set(0.5, 0); 
-            // Moved far Right (+20)
             legRight.position.set(50, 25); 
             player.addChild(legRight);
 
-            // --- LAYER 3: BODY (The Center) ---
+            // --- LAYER 3: BODY ---
             body = PIXI.Sprite.from('body.png');
             body.anchor.set(0.5);
             player.addChild(body);
 
             // --- LAYER 4: HEAD ---
             head = PIXI.Sprite.from('head.png');
-            head.anchor.set(0.5, 0.95); 
-            head.position.set(0, -32);
+            head.anchor.set(0.5, 0.9); 
+            // FIXED: Moved Head UP (from -32 to -50)
+            head.position.set(0, -50);
             player.addChild(head);
 
-            // --- LAYER 5: FRONT ARM (Right Side) ---
+            // --- LAYER 5: FRONT ARM ---
             frontArmContainer = createArm();
-            // Moved to Right (+15) and Up (-25)
+            // Using your tweaked coordinate (-40)
             frontArmContainer.position.set(-40, -25); 
             player.addChild(frontArmContainer);
 
@@ -96,7 +92,6 @@
         function createArm() {
             const container = new PIXI.Container();
             const sprite = PIXI.Sprite.from('arm.png');
-            // Pivot at Shoulder (Left Edge of image)
             sprite.anchor.set(0, 0.5); 
             container.addChild(sprite);
             return container;
@@ -108,7 +103,7 @@
                 player.x += moveData.x * 5 * delta;
                 player.y += moveData.y * 5 * delta;
 
-                // Leg Animation (Wider swing)
+                // Leg Animation
                 legLeft.rotation = Math.sin(Date.now() / 100) * 0.4;
                 legRight.rotation = Math.cos(Date.now() / 100) * 0.4;
             } else {
@@ -116,22 +111,49 @@
                 legRight.rotation = 0;
             }
 
-            // AIMING
+            // AIMING & ROTATION LOGIC
             if (aimData.active) {
-                // Rotate arms
-                frontArmContainer.rotation = -aimData.angle;
-                backArmContainer.rotation = -aimData.angle; 
-
-                // FLIPPING Logic
+                
+                // 1. DETERMINE FACING DIRECTION (The 180 Split)
+                // Left is PI (180 deg) or -PI (-180 deg). Right is 0.
+                // If angle is strictly > 90 deg or < -90 deg, we face LEFT.
                 const isLookingLeft = Math.abs(aimData.angle) > (Math.PI / 2);
 
                 if (isLookingLeft) {
-                    player.scale.x = -1; 
-                    // Fix arm rotation when flipped
-                    frontArmContainer.rotation = Math.PI - frontArmContainer.rotation;
-                    backArmContainer.rotation = Math.PI - backArmContainer.rotation;
+                    player.scale.x = -1; // Flip Player Left
+                    
+                    // ARM CALCULATION (Left Side)
+                    // We must invert the rotation because the container is flipped
+                    const invertedAngle = Math.PI - aimData.angle;
+                    frontArmContainer.rotation = invertedAngle;
+                    backArmContainer.rotation = invertedAngle;
+
+                    // HEAD CALCULATION
+                    // We map the angle so looking straight Left = 0 rotation for head
+                    // Limit rotation to 0.5 rad (approx 30 degrees) so neck doesn't snap
+                    let headRot = invertedAngle;
+                    // Clamp looking too far up/down
+                    if (headRot > 0.5) headRot = 0.5;
+                    if (headRot < -0.5) headRot = -0.5;
+                    
+                    // Apply dampening (0.5) to make head move slower/subtler than gun
+                    head.rotation = headRot * 0.5;
+
                 } else {
-                    player.scale.x = 1;
+                    player.scale.x = 1; // Face Normal (Right)
+
+                    // ARM CALCULATION (Right Side)
+                    // Standard rotation (negated because screen Y is flipped)
+                    frontArmContainer.rotation = -aimData.angle;
+                    backArmContainer.rotation = -aimData.angle;
+
+                    // HEAD CALCULATION
+                    let headRot = -aimData.angle;
+                    // Clamp
+                    if (headRot > 0.5) headRot = 0.5;
+                    if (headRot < -0.5) headRot = -0.5;
+                    
+                    head.rotation = headRot * 0.5;
                 }
             }
         }
