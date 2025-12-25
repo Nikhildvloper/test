@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mini Militia Clone - Fixed</title>
+    <title>Mini Militia Clone - Perfected</title>
     <style>
         body { margin: 0; overflow: hidden; background: #5c8a8a; touch-action: none; }
         canvas { display: block; }
@@ -34,7 +34,6 @@
         document.body.appendChild(app.view);
 
         const player = new PIXI.Container();
-        // We now have TWO arms
         let frontArmContainer, backArmContainer; 
         let body, head, legLeft, legRight;
         
@@ -49,43 +48,44 @@
             player.x = app.screen.width / 2;
             player.y = app.screen.height / 2;
 
-            // --- LAYER 1: BACK ARM (Farthest away) ---
+            // --- LAYER 1: BACK ARM (Left Side) ---
             backArmContainer = createArm();
-            // Offset it slightly behind the shoulder (visual depth)
-            backArmContainer.position.set(10, -25); 
-            // Darken it slightly so it looks like it's in the background
-            backArmContainer.tint = 0xCCCCCC; 
+            // Moved to Left (-15) and Up (-25) for shoulder position
+            backArmContainer.position.set(-15, -25); 
+            backArmContainer.tint = 0xCCCCCC; // Shadow effect
             player.addChild(backArmContainer);
 
-            // --- LAYER 2: BACK LEG ---
+            // --- LAYER 2: LEGS (Both Behind Body) ---
+            
+            // Left Leg (Back Leg)
             legLeft = PIXI.Sprite.from('leg.png');
             legLeft.anchor.set(0.5, 0); 
-            // FIX: Moved to -20 (Wider stance)
+            // Moved far Left (-20)
             legLeft.position.set(-20, 25); 
             player.addChild(legLeft);
 
-            // --- LAYER 3: BODY ---
+            // Right Leg (Front Leg - but still behind body)
+            legRight = PIXI.Sprite.from('leg.png');
+            legRight.anchor.set(0.5, 0); 
+            // Moved far Right (+20)
+            legRight.position.set(20, 25); 
+            player.addChild(legRight);
+
+            // --- LAYER 3: BODY (The Center) ---
             body = PIXI.Sprite.from('body.png');
             body.anchor.set(0.5);
             player.addChild(body);
 
-            // --- LAYER 4: FRONT LEG ---
-            legRight = PIXI.Sprite.from('leg.png');
-            legRight.anchor.set(0.5, 0); 
-            // FIX: Moved to +20 (Wider stance)
-            legRight.position.set(20, 25); 
-            player.addChild(legRight);
-
-            // --- LAYER 5: HEAD ---
+            // --- LAYER 4: HEAD ---
             head = PIXI.Sprite.from('head.png');
             head.anchor.set(0.5, 0.95); 
-            head.position.set(0, -32); // Sit on neck
+            head.position.set(0, -32);
             player.addChild(head);
 
-            // --- LAYER 6: FRONT ARM (Closest to camera) ---
+            // --- LAYER 5: FRONT ARM (Right Side) ---
             frontArmContainer = createArm();
-            // Position near the front shoulder
-            frontArmContainer.position.set(-5, -25); 
+            // Moved to Right (+15) and Up (-25)
+            frontArmContainer.position.set(15, -25); 
             player.addChild(frontArmContainer);
 
             app.stage.addChild(player);
@@ -93,27 +93,22 @@
             setupControls();
         }
 
-        // Helper function to create an arm since we need two now
         function createArm() {
             const container = new PIXI.Container();
             const sprite = PIXI.Sprite.from('arm.png');
-            
-            // FIX: Pivot Point
-            // (0, 0.5) means pivot is at the Left Edge, Center Height.
-            // This attaches the shoulder to the body.
+            // Pivot at Shoulder (Left Edge of image)
             sprite.anchor.set(0, 0.5); 
-            
             container.addChild(sprite);
             return container;
         }
 
         function gameLoop(delta) {
-            // 1. MOVEMENT
+            // MOVEMENT
             if (moveData.active) {
                 player.x += moveData.x * 5 * delta;
                 player.y += moveData.y * 5 * delta;
 
-                // Widen leg animation slightly
+                // Leg Animation (Wider swing)
                 legLeft.rotation = Math.sin(Date.now() / 100) * 0.4;
                 legRight.rotation = Math.cos(Date.now() / 100) * 0.4;
             } else {
@@ -121,20 +116,18 @@
                 legRight.rotation = 0;
             }
 
-            // 2. AIMING
+            // AIMING
             if (aimData.active) {
-                // Rotate BOTH arms
-                // We add a tiny offset to the back arm so they don't look like 100% clones
+                // Rotate arms
                 frontArmContainer.rotation = -aimData.angle;
-                backArmContainer.rotation = -aimData.angle + 0.1; 
+                backArmContainer.rotation = -aimData.angle; 
 
-                // 3. FLIPPING
+                // FLIPPING Logic
                 const isLookingLeft = Math.abs(aimData.angle) > (Math.PI / 2);
 
                 if (isLookingLeft) {
                     player.scale.x = -1; 
-                    
-                    // Math fix for rotating arms when body is flipped
+                    // Fix arm rotation when flipped
                     frontArmContainer.rotation = Math.PI - frontArmContainer.rotation;
                     backArmContainer.rotation = Math.PI - backArmContainer.rotation;
                 } else {
