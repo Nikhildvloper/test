@@ -51,7 +51,7 @@
             // --- LAYER 1: BACK ARM (Left Side) ---
             backArmContainer = createArm();
             // Moved to Left (-15) and Up (-25) for shoulder position
-            backArmContainer.position.set(-15, -25); 
+            backArmContainer.position.set(25, -25); 
             backArmContainer.tint = 0xCCCCCC; // Shadow effect
             player.addChild(backArmContainer);
 
@@ -85,7 +85,7 @@
             // --- LAYER 5: FRONT ARM (Right Side) ---
             frontArmContainer = createArm();
             // Moved to Right (+15) and Up (-25)
-            frontArmContainer.position.set(15, -25); 
+            frontArmContainer.position.set(-25, -25); 
             player.addChild(frontArmContainer);
 
             app.stage.addChild(player);
