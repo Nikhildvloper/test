@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mini Militia Clone</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #333; touch-action: none; }
+        canvas { display: block; }
+        
+        /* UI Layer for Joysticks */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; /* Let clicks pass through to canvas if needed */
+        }
+        
+        .joystick-zone {
+            position: absolute;
+            bottom: 50px;
+            width: 150px;
+            height: 150px;
+            pointer-events: auto; /* Enable touch for joysticks */
+        }
+
+        #stick-left { left: 50px; }
+        #stick-right { right: 50px; }
+    </style>
+    
+    <script src="https://pixijs.download/v7.x/pixi.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div id="stick-left" class="joystick-zone"></div>
+        <div id="stick-right" class="joystick-zone"></div>
+    </div>
+
+    <script>
+        // --- 1. SETUP THE GAME APP ---
+        const app = new PIXI.Application({ 
+            width: window.innerWidth, 
+            height: window.innerHeight, 
+            backgroundColor: 0x5c8a8a // Skyish color
+        });
+        document.body.appendChild(app.view);
+
+        // --- 2. GLOBAL VARIABLES ---
+        const player = new PIXI.Container();
+        let armContainer, body, head, legLeft, legRight;
+        
+        // Input States
+        let moveData = { x: 0, y: 0, active: false };
+        let aimData = { angle: 0, active: false };
+
+        // --- 3. LOAD ASSETS ---
+        // Ensure your files are named exactly like this in the folder!
+        const assets = [
+            'arm.png',  // 1000008116.png
+            'body.png', // 1000008117.png
+            'head.png', // 1000008118.png
+            'leg.png'   // 1000008119.png
+        ];
+
+        PIXI.Assets.load(assets).then(setupGame);
+
+        function setupGame() {
+            // --- BUILD THE PUPPET (HIERARCHY) ---
+            
+            // 1. Center the player container
+            player.x = app.screen.width / 2;
+            player.y = app.screen.height / 2;
+
+            // 2. LEGS (Attached to player, behind body)
+            legLeft = PIXI.Sprite.from('leg.png');
+            legLeft.anchor.set(0.5, 0); // Pivot at hip (top center)
+            legLeft.position.set(-10, 30); // Offset relative to body
+            player.addChild(legLeft);
+
+            legRight = PIXI.Sprite.from('leg.png');
+            legRight.anchor.set(0.5, 0);
+            legRight.position.set(10, 30);
+            player.addChild(legRight);
+
+            // 3. BODY (The core)
+            body = PIXI.Sprite.from('body.png');
+            body.anchor.set(0.5); // Center pivot
+            player.addChild(body);
+
+            // 4. HEAD (Attached to body)
+            head = PIXI.Sprite.from('head.png');
+            head.anchor.set(0.5, 0.9); // Pivot at the neck (bottom)
+            head.position.set(0, -35); // Move up to sit on neck
+            player.addChild(head);
+
+            // 5. ARM (The tricky part!)
+            // We use a container to make rotation easier
+            armContainer = new PIXI.Container();
+            armContainer.position.set(5, -10); // Shoulder position
+            
+            const armSprite = PIXI.Sprite.from('arm.png');
+            // IMPORTANT: Adjust this based on your specific image
+            // We want the pivot to be the shoulder (Left side of image usually)
+            armSprite.anchor.set(0.1, 0.5); 
+            
+            armContainer.addChild(armSprite);
+            player.addChild(armContainer);
+
+            // Add player to scene
+            app.stage.addChild(player);
+
+            // --- START GAME LOOP ---
+            app.ticker.add(gameLoop);
+            
+            // Initialize Joysticks
+            setupControls();
+        }
+
+        function gameLoop(delta) {
+            // 1. MOVEMENT LOGIC (Left Stick)
+            if (moveData.active) {
+                player.x += moveData.x * 5 * delta; // Speed = 5
+                player.y += moveData.y * 5 * delta;
+
+                // Simple "Flying" leg animation (wobble legs)
+                legLeft.rotation = Math.sin(Date.now() / 100) * 0.2;
+                legRight.rotation = Math.cos(Date.now() / 100) * 0.2;
+            } else {
+                // Reset legs when stopped
+                legLeft.rotation = 0;
+                legRight.rotation = 0;
+            }
+
+            // 2. AIMING LOGIC (Right Stick)
+            if (aimData.active) {
+                // Rotate arm to point direction
+                // Note: -aimData.angle because screen coordinates are flipped for Y
+                armContainer.rotation = -aimData.angle;
+
+                // 3. FLIPPING LOGIC (Face Left/Right)
+                // If aiming to the left (angle > 90 degrees or < -90 degrees)
+                const isLookingLeft = Math.abs(aimData.angle) > (Math.PI / 2); // > 90 deg
+
+                if (isLookingLeft) {
+                    player.scale.x = -1; // Flip entire player
+                    // Fix Arm: When player is flipped, arm rotation needs inversion math
+                    armContainer.rotation = Math.PI - armContainer.rotation; 
+                } else {
+                    player.scale.x = 1; // Face normal
+                }
+            }
+        }
+
+        function setupControls() {
+            // LEFT JOYSTICK (Movement)
+            const joyLeft = nipplejs.create({
+                zone: document.getElementById('stick-left'),
+                mode: 'static',
+                position: { left: '50%', top: '50%' },
+                color: 'white'
+            });
+
+            joyLeft.on('move', (evt, data) => {
+                moveData.active = true;
+                // Normalize vector (cosine/sine)
+                moveData.x = Math.cos(data.angle.radian);
+                moveData.y = -Math.sin(data.angle.radian); // Invert Y for screen coords
+            });
+
+            joyLeft.on('end', () => { moveData.active = false; });
+
+            // RIGHT JOYSTICK (Aiming)
+            const joyRight = nipplejs.create({
+                zone: document.getElementById('stick-right'),
+                mode: 'static',
+                position: { left: '50%', top: '50%' },
+                color: 'red'
+            });
+
+            joyRight.on('move', (evt, data) => {
+                aimData.active = true;
+                aimData.angle = data.angle.radian;
+            });
+            
+            // Don't reset aim on 'end' (keep gun pointing last direction)
+            // joyRight.on('end', () => { aimData.active = false; });
+        }
+    </script>
+</body>
+</html>
