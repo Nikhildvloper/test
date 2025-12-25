@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mini Militia Clone - Head Rotation & Fixes</title>
+    <title>Mini Militia Clone - Aim Fixed</title>
     <style>
         body { margin: 0; overflow: hidden; background: #5c8a8a; touch-action: none; }
         canvas { display: block; }
@@ -48,9 +48,8 @@
             player.x = app.screen.width / 2;
             player.y = app.screen.height / 2;
 
-            // --- LAYER 1: BACK ARM (Behind Body) ---
+            // --- LAYER 1: BACK ARM (Left Side Shadowed) ---
             backArmContainer = createArm();
-            // Using your tweaked coordinate (40)
             backArmContainer.position.set(40, -25); 
             backArmContainer.tint = 0xCCCCCC; 
             player.addChild(backArmContainer);
@@ -74,13 +73,12 @@
             // --- LAYER 4: HEAD ---
             head = PIXI.Sprite.from('head.png');
             head.anchor.set(0.5, 0.9); 
-            // FIXED: Moved Head UP (from -32 to -50)
-            head.position.set(0, -50);
+            // FIXED: Moved Head UP MORE (-65)
+            head.position.set(0, -65);
             player.addChild(head);
 
             // --- LAYER 5: FRONT ARM ---
             frontArmContainer = createArm();
-            // Using your tweaked coordinate (-40)
             frontArmContainer.position.set(-40, -25); 
             player.addChild(frontArmContainer);
 
@@ -111,54 +109,50 @@
                 legRight.rotation = 0;
             }
 
-            // AIMING & ROTATION LOGIC
+            // AIMING LOGIC (The Fix)
             if (aimData.active) {
+                let angle = aimData.angle;
                 
-                // 1. DETERMINE FACING DIRECTION (The 180 Split)
-                // Left is PI (180 deg) or -PI (-180 deg). Right is 0.
-                // If angle is strictly > 90 deg or < -90 deg, we face LEFT.
-                const isLookingLeft = Math.abs(aimData.angle) > (Math.PI / 2);
+                // 1. DETECT SIDE (Right vs Left split)
+                // Math.abs(angle) > PI/2 means the joystick is on the left half
+                const isLookingLeft = Math.abs(angle) > (Math.PI / 2);
 
                 if (isLookingLeft) {
-                    player.scale.x = -1; // Flip Player Left
+                    // --- FACE LEFT ---
+                    player.scale.x = -1; 
                     
-                    // ARM CALCULATION (Left Side)
-                    // We must invert the rotation because the container is flipped
-                    const invertedAngle = Math.PI - aimData.angle;
-                    frontArmContainer.rotation = invertedAngle;
-                    backArmContainer.rotation = invertedAngle;
+                    // CALCULATE MIRRORED ANGLE
+                    // If we are looking Left, we need to invert the math so the arm
+                    // points correctly relative to the flipped body.
+                    // Formula: PI - angle (mirrors the rotation across Y axis)
+                    let mirroredAngle = Math.PI - angle;
+                    
+                    // Note: Since screen Y is inverted vs Math Y, we negate the result
+                    frontArmContainer.rotation = -mirroredAngle;
+                    backArmContainer.rotation = -mirroredAngle;
 
-                    // HEAD CALCULATION
-                    // We map the angle so looking straight Left = 0 rotation for head
-                    // Limit rotation to 0.5 rad (approx 30 degrees) so neck doesn't snap
-                    let headRot = invertedAngle;
-                    // Clamp looking too far up/down
-                    if (headRot > 0.5) headRot = 0.5;
-                    if (headRot < -0.5) headRot = -0.5;
-                    
-                    // Apply dampening (0.5) to make head move slower/subtler than gun
-                    head.rotation = headRot * 0.5;
+                    // HEAD: Clamp rotation so neck doesn't break
+                    // We divide by 2 to make head move slower than gun
+                    let headRot = -mirroredAngle * 0.5;
+                    head.rotation = Math.max(-0.5, Math.min(0.5, headRot)); 
 
                 } else {
-                    player.scale.x = 1; // Face Normal (Right)
+                    // --- FACE RIGHT ---
+                    player.scale.x = 1;
 
-                    // ARM CALCULATION (Right Side)
-                    // Standard rotation (negated because screen Y is flipped)
-                    frontArmContainer.rotation = -aimData.angle;
-                    backArmContainer.rotation = -aimData.angle;
+                    // Standard Rotation
+                    frontArmContainer.rotation = -angle;
+                    backArmContainer.rotation = -angle;
 
-                    // HEAD CALCULATION
-                    let headRot = -aimData.angle;
-                    // Clamp
-                    if (headRot > 0.5) headRot = 0.5;
-                    if (headRot < -0.5) headRot = -0.5;
-                    
-                    head.rotation = headRot * 0.5;
+                    // HEAD: Clamp rotation
+                    let headRot = -angle * 0.5;
+                    head.rotation = Math.max(-0.5, Math.min(0.5, headRot));
                 }
             }
         }
 
         function setupControls() {
+            // MOVEMENT STICK
             const joyLeft = nipplejs.create({ zone: document.getElementById('stick-left'), mode: 'static', position: { left: '50%', top: '50%' }, color: 'white' });
             joyLeft.on('move', (evt, data) => {
                 moveData.active = true;
@@ -167,6 +161,7 @@
             });
             joyLeft.on('end', () => { moveData.active = false; });
 
+            // AIM STICK
             const joyRight = nipplejs.create({ zone: document.getElementById('stick-right'), mode: 'static', position: { left: '50%', top: '50%' }, color: 'red' });
             joyRight.on('move', (evt, data) => {
                 aimData.active = true;
